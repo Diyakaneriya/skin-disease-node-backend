@@ -76,12 +76,13 @@ async uploadImage(req, res) {
     // Save image with user ID
     const imageId = await imageModel.create(userId, imagePath);
     
-    // Process image with feature extraction script
+    // Process image with feature extraction and classification
     let features = null;
+    let classification = null;
     let processingError = null;
     
     try {
-      console.log('Extracting features for image:', imagePath);
+      console.log('Processing image:', imagePath);
       
       // Create a temporary directory for the output if it doesn't exist
       const tempDir = path.resolve(__dirname, '../temp');
@@ -92,7 +93,7 @@ async uploadImage(req, res) {
       // Set up paths for the Python script
       const absoluteImagePath = path.resolve(imagePath);
       const outputPath = path.resolve(tempDir, `${imageId}.json`);
-      const scriptPath = path.resolve(__dirname, '../../ml-service/extract_features_cli.py');
+      const scriptPath = path.resolve(__dirname, '../../ml-service/process_image.py');
       
       // Execute the Python script synchronously to wait for results
       const { stdout, stderr } = await execPromise(`python "${scriptPath}" "${absoluteImagePath}" "${outputPath}"`);
@@ -103,9 +104,10 @@ async uploadImage(req, res) {
       
       // Read the output JSON file
       if (fs.existsSync(outputPath)) {
-        const featureData = JSON.parse(fs.readFileSync(outputPath, 'utf8'));
-        features = featureData.features;
-        console.log('Features extracted successfully');
+        const processedData = JSON.parse(fs.readFileSync(outputPath, 'utf8'));
+        features = processedData.features;
+        classification = processedData.classification;
+        console.log('Image processed successfully: features extracted and image classified');
         
         // Clean up - remove the temporary file
         fs.unlinkSync(outputPath);
@@ -123,8 +125,9 @@ async uploadImage(req, res) {
       imageId,
       imagePath: `/${imagePath}`,
       features: features,
+      classification: classification,
       processingError: processingError,
-      message: processingError || 'Image uploaded and processed successfully'
+      message: processingError || 'Image uploaded, features extracted, and classified successfully'
     });
   } catch (error) {
     console.error('Upload error:', error);
